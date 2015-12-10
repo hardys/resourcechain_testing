@@ -1,0 +1,20 @@
+heat_template_version: 2015-04-30
+
+parameters:
+  servers:
+    type: json
+
+resources:
+  NovaComputeConfig:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: |
+        #!/bin/sh
+        echo "I am nova_compute!" > /tmp/nova_compute_role
+
+  NovaComputeDeployment:
+    type: OS::Heat::SoftwareDeployments
+    properties:
+      servers:  {get_param: servers}
+      config: {get_resource: NovaComputeConfig}

@@ -1,0 +1,21 @@
+heat_template_version: 2015-10-15
+parameters:
+  server:
+    type: string
+
+resources:
+  config:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: |
+        #!/bin/bash
+        echo "ControllerExtra" > /tmp/controller_extra
+
+  deployment:
+    type: OS::Heat::SoftwareDeployment
+    properties:
+      config:
+        get_resource: config
+      server:
+        get_param: server

@@ -1,0 +1,19 @@
+resource_registry:
+  OS::TripleO::Node: node.yaml
+  OS::TripleO::NodeAdminUserData: OS::Heat::None
+  OS::TripleO::NodeUserData: OS::Heat::None
+
+  # AllNodes configuration
+  OS::TripleO::AllNodes::SoftwareDeployment: all_nodes.yaml
+
+  # Role templates
+  database: roles/database.yaml
+  rabbitmq: roles/rabbitmq.yaml
+  keystone: roles/keystone.yaml
+  nova_compute: roles/nova_compute.yaml
+
+  # ExtraConfig interfaces
+  OS::TripleO::ControllerExtraConfigPre: extraconfig/controller_extra.yaml
+  OS::TripleO::ComputeExtraConfigPre: OS::Heat::None
+  OS::TripleO::NodeExtraConfig: extraconfig/all_extra.yaml
+

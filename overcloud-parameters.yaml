@@ -1,0 +1,5 @@
+parameters:
+  OvercloudControlFlavor: m1.mini
+  controllerImage: fedora-software-config
+  OvercloudComputeFlavor: m1.mini
+  NovaImage: fedora-software-config

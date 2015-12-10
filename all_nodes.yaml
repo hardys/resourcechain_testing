@@ -1,0 +1,64 @@
+heat_template_version: 2015-04-30
+
+parameters:
+  controller_servers:
+    type: json
+  compute_servers:
+    type: json
+
+resources:
+  CollectMacConfig:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: |
+        #!/bin/sh
+        MACS=$(ifconfig  | grep ether | awk '{print $2}' | tr "\n" " ")
+        HOST_FQDN=$(hostname -f)
+        if [ -z "$HOST_FQDN" ]; then
+          HOSTNAME=$(hostname -s)
+          # hardcoding the domain name to avoid DNS lookup dependency
+          # same type of hardcoding appears elsewhere
+          # --ie. controller-puppet.yaml
+          # FIXME_HOSTNAME_DOMAIN_HARDCODE
+          echo "$HOSTNAME.localdomain $MACS"
+        else
+          echo "$HOST_FQDN $MACS"
+        fi
+
+  CollectMacDeploymentsController:
+    type: OS::Heat::SoftwareDeployments
+    properties:
+      servers:  {get_param: controller_servers}
+      config: {get_resource: CollectMacConfig}
+      actions: ['CREATE'] # Only do this on CREATE
+
+  CollectMacDeploymentsCompute:
+    type: OS::Heat::SoftwareDeployments
+    properties:
+      servers:  {get_param: compute_servers}
+      config: {get_resource: CollectMacConfig}
+      actions: ['CREATE'] # Only do this on CREATE
+
+  # Now we calculate the additional nexus config based on the mappings
+  DeployMacConfig:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      inputs:
+      - name: controller_mappings
+      - name: compute_mappings
+      config: |
+        #!/bin/bash
+        echo $controller_mappings > /tmp/controller_mappings
+        echo $compute_mappings > /tmp/compute_mappings
+
+  DeployMacDeploymentsController:
+    type: OS::Heat::SoftwareDeployment
+    properties:
+      server:  {get_param: [controller_servers, '0']}
+      config: {get_resource: DeployMacConfig}
+      input_values:
+        controller_mappings: {get_attr: [CollectMacDeploymentsController, deploy_stdouts]}
+        compute_mappings: {get_attr: [CollectMacDeploymentsCompute, deploy_stdouts]}
+      actions: ['CREATE'] # Only do this on CREATE

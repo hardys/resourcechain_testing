@@ -1,0 +1,7 @@
+heat_template_version: 2015-10-15
+
+resources:
+  chain:
+    type: OS::Heat::ResourceChain
+    properties:
+      resources: ['OS::Heat::RandomString', 'OS::Heat::RandomString']

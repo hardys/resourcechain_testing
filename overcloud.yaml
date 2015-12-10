@@ -1,0 +1,167 @@
+heat_template_version: 2015-10-15
+
+parameters:
+
+  ControllerCount:
+    type: number
+    default: 1
+  OvercloudControlFlavor:
+    description: Flavor for control nodes to request when deploying.
+    type: string
+    constraints:
+      - custom_constraint: nova.flavor
+  controllerImage:
+    type: string
+    constraints:
+      - custom_constraint: glance.image
+
+  ComputeCount:
+    type: number
+    default: 1
+  OvercloudComputeFlavor:
+    description: Use this flavor
+    type: string
+    constraints:
+      - custom_constraint: nova.flavor
+  NovaImage:
+    type: string
+    constraints:
+      - custom_constraint: glance.image
+
+  NodeExtraConfigMap:
+    description: Map of optional ExtraConfig resources to apply on node deployment
+    default:
+      Controller:
+        - 'OS::TripleO::ControllerExtraConfigPre'
+        - 'OS::TripleO::NodeExtraConfig'
+      Compute:
+        - 'OS::TripleO::ComputeExtraConfigPre'
+        - 'OS::TripleO::NodeExtraConfig'
+    type: json
+
+  ClusterConfig:
+    description: List of Resources to apply to all nodes before role configuration
+    type: comma_delimited_list
+    default:
+      - 'OS::TripleO::AllNodes::SoftwareDeployment'
+
+  ControllerRoles:
+    description: List of roles resources to deploy on controller nodes
+    type: comma_delimited_list
+    default:
+      - database
+      - rabbitmq
+      - keystone
+
+  ComputeRoles:
+    description: List of roles templates to deploy on compute nodes
+    type: comma_delimited_list
+    default:
+      - nova_compute
+
+  # Hostname format for each role
+  # Note %index% is translated into the index of the node, e.g 0/1/2 etc
+  # and %stackname% is replaced with OS::stack_name in the template below.
+  # If you want to use the heat generated names, pass '' (empty string).
+  ControllerHostnameFormat:
+    type: string
+    description: Format for Controller node hostnames
+    default: '%stackname%-controller-%index%'
+  ComputeHostnameFormat:
+    type: string
+    description: Format for Compute node hostnames
+    default: '%stackname%-novacompute-%index%'
+
+  # Identifiers to trigger tasks on nodes
+  UpdateIdentifier:
+    default: ''
+    type: string
+    description: >
+      Setting to a previously unused value during stack-update will trigger
+      package update on all nodes
+  DeployIdentifier:
+    default: ''
+    type: string
+    description: >
+      Setting this to a unique value will re-run any deployment tasks which
+      perform configuration on a Heat stack-update.
+
+  # If you want to remove a specific node from a resource group, you can pass
+  # the node name or id as a <Group>RemovalPolicies parameter, for example:
+  # ComputeRemovalPolicies: [{'resource_list': ['0']}]
+  ControllerRemovalPolicies:
+    default: []
+    type: json
+    description: >
+      List of resources to be removed from ControllerResourceGroup when
+      doing an update which requires removal of specific resources.
+  ComputeRemovalPolicies:
+    default: []
+    type: json
+    description: >
+      List of resources to be removed from ComputeResourceGroup when
+      doing an update which requires removal of specific resources.
+
+resources:
+
+  Controller:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: {get_param: ControllerCount}
+      removal_policies: {get_param: ControllerRemovalPolicies}
+      resource_def:
+        type: OS::TripleO::Node
+        properties:
+          Image: {get_param: controllerImage}
+          Flavor: {get_param: OvercloudControlFlavor}
+          Hostname:
+            str_replace:
+              template: {get_param: ControllerHostnameFormat}
+              params:
+                '%stackname%': {get_param: 'OS::stack_name'}
+          NodeIndex: '%index%'
+          NodeExtraConfig: {get_param: [NodeExtraConfigMap, Controller]}
+
+  Compute:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: {get_param: ComputeCount}
+      removal_policies: {get_param: ComputeRemovalPolicies}
+      resource_def:
+        type: OS::TripleO::Node
+        properties:
+          Image: {get_param: NovaImage}
+          Flavor: {get_param: OvercloudComputeFlavor}
+          Hostname:
+            str_replace:
+              template: {get_param: ComputeHostnameFormat}
+              params:
+                '%stackname%': {get_param: 'OS::stack_name'}
+          NodeIndex: '%index%'
+          NodeExtraConfig: {get_param: [NodeExtraConfigMap, Compute]}
+
+  ClusterConfiguration:
+    type: OS::Heat::ResourceChain
+    properties:
+      resources: {get_param: ClusterConfig}
+      resource_properties:
+        compute_servers: {get_attr: [Controller, attributes, nova_server_resource]}
+        controller_servers: {get_attr: [Compute, attributes, nova_server_resource]}
+
+#  ControllerRolesDeployment:
+#    type: OS::Heat::ResourceChain
+#    properties:
+#      resources: {get_param: ControllerRoles}
+#      resource_properties:
+#        servers: {get_attr: [Controller, attributes, nova_server_resource]}
+
+#  ComputeRolesDeployment:
+#    type: OS::Heat::ResourceChain
+#    properties:
+#      resources: {get_param: ComputeRoles}
+#      resource_properties:
+#        servers: {get_attr: [Compute, attributes, nova_server_resource]}
+
+outputs:
+  ControllerServers:
+    value: {get_attr: [Controller, attributes, nova_server_resource]}
